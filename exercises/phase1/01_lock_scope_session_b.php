@@ -29,7 +29,10 @@ echo "--- Current InnoDB Locks (performance_schema.data_locks) ---\n";
 // 取得したいカラム例:
 //   ENGINE_TRANSACTION_ID, OBJECT_NAME, INDEX_NAME, LOCK_TYPE, LOCK_MODE, LOCK_STATUS, LOCK_DATA
 // ヒント: OBJECT_SCHEMA = 'internals_lab' で絞り込むと見やすい
-$locks = []; // <-- $conn->select("...") に書き換える
+$locks = $conn->select(
+            "SELECT ENGINE_TRANSACTION_ID, OBJECT_NAME, INDEX_NAME, LOCK_TYPE, LOCK_MODE, LOCK_STATUS, LOCK_DATA 
+            FROM performance_schema.data_locks WHERE OBJECT_SCHEMA = 'internals_lab'"
+        ); // <-- $conn->select("...") に書き換える
 
 if ($locks === []) {
     echo "(ロックが観測されませんでした。Session A が待機中か、TODO 1 が未実装です)\n";
@@ -55,7 +58,6 @@ echo "\n";
 // ------------------------------------------------------------
 // TODO 2: Part 1 でロック範囲を観測できたら、以下のコメントを外して
 //         「どの ID への INSERT や UPDATE がブロックされるか（あるいは通るか）」を検証しよう。
-/*
 try {
     $conn->beginTransaction();
 
@@ -70,6 +72,7 @@ try {
     //     'created_at'  => date('Y-m-d H:i:s'),
     //     'updated_at'  => date('Y-m-d H:i:s'),
     // ]);
+    $conn->table('products')->where('id', 20)->update(['stock' => 99]);
 
     echo "[Session B] クエリ成功！（ブロックされませんでした）\n";
     $conn->rollBack();
@@ -79,4 +82,3 @@ try {
     }
     echo "[Session B] ブロック/エラー発生: {$e->getMessage()}\n";
 }
-*/
