@@ -1,0 +1,119 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Capsule\Manager as Capsule;
+
+if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
+    fwrite(STDERR, "Error: vendor/autoload.php not found. Run 'composer install' first.\n");
+    exit(1);
+}
+
+require __DIR__ . '/bootstrap.php';
+
+$command = $argv[1] ?? 'help';
+
+match ($command) {
+    'migrate' => runMigrations(),
+    'seed'    => runSeeders(),
+    'fresh'   => runFresh(),
+    'status'  => showStatus(),
+    default   => showHelp(),
+};
+
+function runMigrations(): void
+{
+    $files = glob(__DIR__ . '/database/migrations/*.php') ?: [];
+    sort($files);
+
+    if ($files === []) {
+        echo "No migration files found.\n";
+        return;
+    }
+
+    foreach ($files as $file) {
+        $name = basename($file);
+        echo "[migrate] Running {$name} ... ";
+        $migration = require $file;
+        $migration['up']();
+        echo "DONE\n";
+    }
+}
+
+function runSeeders(): void
+{
+    $files = glob(__DIR__ . '/database/seeders/*.php') ?: [];
+    sort($files);
+
+    if ($files === []) {
+        echo "No seeder files found.\n";
+        return;
+    }
+
+    foreach ($files as $file) {
+        $name = basename($file);
+        echo "[seed] Running {$name} ... ";
+        $seeder = require $file;
+        $seeder();
+        echo "DONE\n";
+    }
+}
+
+function runFresh(): void
+{
+    echo "[fresh] Dropping all tables ... ";
+    Capsule::schema()->disableForeignKeyConstraints();
+    Capsule::schema()->dropAllTables();
+    Capsule::schema()->enableForeignKeyConstraints();
+    echo "DONE\n";
+
+    runMigrations();
+    runSeeders();
+}
+
+function showStatus(): void
+{
+    $conn = Capsule::connection();
+    $version = $conn->selectOne('SELECT VERSION() AS v')->v;
+    $isolation = $conn->selectOne('SELECT @@transaction_isolation AS iso')->iso;
+    $dbName = $conn->getDatabaseName();
+
+    echo "=== MySQL Internals Lab Status ===\n";
+    echo "Database:        {$dbName}\n";
+    echo "MySQL Version:   {$version}\n";
+    echo "Isolation Level: {$isolation}\n\n";
+
+    $tables = $conn->select('SHOW TABLES');
+    $key = 'Tables_in_' . $dbName;
+
+    if ($tables === []) {
+        echo "Tables: (none)\n";
+        return;
+    }
+
+    echo "Tables:\n";
+    foreach ($tables as $row) {
+        $table = $row->{$key};
+        $count = $conn->table($table)->count();
+        printf("  - %-25s (%d rows)\n", $table, $count);
+    }
+}
+
+function showHelp(): void
+{
+    echo <<<TEXT
+MySQL Internals Lab CLI
+
+Usage:
+  php lab <command>
+
+Commands:
+  migrate   Run all migration files in database/migrations/
+  seed      Run all seeder files in database/seeders/
+  fresh     Drop all tables, re-run migrations and seeders
+  status    Display MySQL version, isolation level, and table row counts
+  help      Show this help message
+
+TEXT;
+}

@@ -1,0 +1,22 @@
+# Dependencies
+/vendor/
+
+# Environment variables
+.env
+
+# AI Agent instructions (kept local, excluded from Git)
+agents.md
+
+# Local database data & logs
+docker/mysql/data/
+logs/
+*.dump.sql
+*.sql.gz
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
