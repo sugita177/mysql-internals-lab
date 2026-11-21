@@ -47,3 +47,14 @@
 - **実務への応用ポイント:**
   - 複数レコードをロックする際は、`WHERE id IN (...) ORDER BY id`（`PRIMARY` 順のため `Using filesort` なしで走査可能）や PHP 側での事前 `sort()` によって **ロック取得順序を統一** し、循環待ちを構造上発生させない。
   - それでも発生し得るデッドロックに備え、`DB::transaction(..., $attempts)` 等でリトライ可能な設計にする。
+
+### [Phase 2-2] ギャップロック起因のデッドロック（2026-11-21）
+
+- **学んだ原理・内部構造:**
+  - ギャップロック（`X,GAP`）同士は互いにブロックせず両立する。しかし `INSERT` 時に要求される **Insert Intention Lock（`X,GAP,INSERT_INTENTION`）** は他セッションの `X,GAP` によってブロックされる。
+  - そのため「存在しない行を `FOR UPDATE` で確認してから `INSERT` する（Check-Then-Act）」処理を 2 セッションが同時実行すると、異なる ID（`25` と `26`）であっても同じギャップ（`(20, 30)`）を互いに握った状態で Insert Intention Lock を待ち合い、デッドロックになる。
+- **観測した事実:**
+  - Session A（`id=25`）と Session B（`id=26`）の両方が、`FOR UPDATE` 時点で同じ `id=30`（`heap no 4`）に対する `lock_mode X locks gap before rec` を獲得して通過し、続く `INSERT` で両者とも `lock_mode X locks gap before rec insert intention waiting` となって Session B が Victim でロールバックされた。
+- **実務への応用ポイント:**
+  - 一意制約を張ったうえで「先に `INSERT`（または `UPDATE`）を試みて重複例外をハンドリングする」設計にし、`FOR UPDATE` → `INSERT` パターンを避ける。
+  - 必要に応じて `READ COMMITTED` の採用や `DB::transaction(..., $attempts)` によるリトライを組み合わせる。
