@@ -27,7 +27,7 @@
   - 複数セッションが同じギャップにギャップロック（互換）を取得した後、`INSERT` 時の Insert Intention Lock で相互待ちになる典型パターンを再現する
 - [x] **2-3. 外部キー制約による親テーブルへの共有ロック（Sロック）波及とデッドロック**
   - 子テーブルへの `INSERT` / `UPDATE` 時に親テーブルへ暗黙の S ロックが張られる挙動と、親テーブル更新との競合を検証する
-- [ ] **2-4. `SHOW ENGINE INNODB STATUS` の読み解き方と回避設計**
+- [x] **2-4. `SHOW ENGINE INNODB STATUS` の読み解き方と回避設計**
   - `LATEST DETECTED DEADLOCK` セクションの読解、ロック順序統一、楽観的ロック（バージョンカラム）、トランザクション粒度縮小の実装パターンを比較する
 
 ---
@@ -42,6 +42,8 @@
   - ワーカー並列実行時に二重処理とロック待ちを同時に防ぐ `FOR UPDATE SKIP LOCKED`（および `NOWAIT`）の挙動を確認する
 - [ ] **3-4. ネストしたトランザクションと `SAVEPOINT` の挙動（発展）**
   - Laravel の `DB::transaction()` をネストした際に発行される `SAVEPOINT` / `ROLLBACK TO SAVEPOINT` と、`attempts`（リトライ）指定時の副作用・注意点を確認する
+- [ ] **3-5. Eloquent のクエリ速度・メモリ最適化（N+1・`whereHas`・大量データ処理）**
+  - `with()` による Eager Loading、`whereHas`（相関サブクエリ）vs `JOIN` の実行計画と速度差、`chunk()`（`OFFSET` 劣化）vs `chunkById()`（Seek 法）vs `cursor()`、バルク `insert()` の性能比較を行う
 
 ---
 
@@ -57,6 +59,8 @@
   - ランダムな UUIDv4 挿入時に発生する B+Tree ページ分割・フラグメンテーション・テーブルサイズ肥大化を実測比較する
 - [ ] **4-5. InnoDB バッファプールと統計情報（`ANALYZE TABLE`）の理解（発展）**
   - なぜ同じクエリでも統計情報の偏りで実行計画が急変するのか、`innodb_buffer_pool_size` とディスク I/O の関係を整理する
+- [ ] **4-6. サブクエリ・集計・`SELECT *` のパフォーマンスチューニング**
+  - 相関サブクエリ vs `JOIN`、一時テーブル（`Using temporary`）を発生させない `GROUP BY` / `DISTINCT`、巨大な `TEXT`/`JSON` カラムを `SELECT *` で読むことによるメモリ・ページI/O 劣化とテーブル分割・カバリングの勘所を検証する
 
 ---
 
@@ -98,3 +102,5 @@
   - `max_connections`、`wait_timeout`、Persistent Connection の罠、およびコネクションプーリング（ProxySQL / RDS Proxy）の役割を理解する
 - [ ] **7-4. スロークエリログ解析とパフォーマンス調査の定石**
   - `mysql.slow_log` / `mysqldumpslow` と `performance_schema.events_statements_summary_by_digest` を使ってボトルネッククエリを特定する実務フローを実践する
+- [ ] **7-5. バルク処理・パーティショニングとアーカイブ戦略（発展）**
+  - ループ `INSERT` vs バルク `INSERT`（トランザクションまとめ）の速度ベンチマーク、肥大化テーブルのパーティショニング（Partition Pruning）と履歴データのアーカイブ設計を学ぶ
