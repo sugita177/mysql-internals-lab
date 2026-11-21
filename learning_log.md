@@ -58,3 +58,14 @@
 - **実務への応用ポイント:**
   - 一意制約を張ったうえで「先に `INSERT`（または `UPDATE`）を試みて重複例外をハンドリングする」設計にし、`FOR UPDATE` → `INSERT` パターンを避ける。
   - 必要に応じて `READ COMMITTED` の採用や `DB::transaction(..., $attempts)` によるリトライを組み合わせる。
+
+### [Phase 2-3] 外部キー制約による親テーブルへの S ロック波及とデッドロック（2026-11-22）
+
+- **学んだ原理・内部構造:**
+  - 外部キー制約を持つ子テーブルへ `INSERT` / `UPDATE` を行うと、InnoDB は参照整合性を保証するため親テーブルの該当行に **暗黙の S ロック（`S,REC_NOT_GAP`）** を取得する。
+  - S ロック同士は両立するため複数セッションが同じ親行の S ロックを同時に保持でき、その後双方が親行の `UPDATE`（S → X ロック昇格）を行うと、互いの S ロック解放を待ち合ってデッドロックが発生する。
+- **観測した事実:**
+  - `order_items` への `INSERT` 後、同じ `products.id = 10` を `decrement('stock')` で更新した 2 セッションが、`LATEST DETECTED DEADLOCK` 上で共に `lock mode S locks rec but not gap` を保持したまま `lock_mode X locks rec but not gap waiting` となり、Session B が Victim としてロールバックされた。
+- **実務への応用ポイント:**
+  - 子テーブルへ `INSERT` する前に親テーブルを `lockForUpdate()` で先に X ロック確保する（または親の更新を先に行う）ことで S → X 昇格デッドロックを防げる。
+  - 単純な相対更新は `decrement()` / `increment()` を使うと SQL 側でアトミックに計算される（ただし在庫下限チェック等がある場合は `lockForUpdate()` か `WHERE stock >= N` の併用が必須）。
