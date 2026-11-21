@@ -36,3 +36,14 @@
   - `lockForUpdate()` を使う際は `WHERE` 句に必ず適切なインデックスが効くことを確認する（インデックス欠如は全行ロックによるサービス停止に直結する）。
   - 存在しない行への `FOR UPDATE` や非一意インデックスのロックでは周囲のギャップがロックされ、無関係な新規 `INSERT` をブロックする点に注意する。
   - 主キーには `BIGINT UNSIGNED` や `BINARY(16)` などコンパクトな型を選定し、セカンダリインデックスの肥大化を防ぐ。
+
+### [Phase 2-1] 更新順序の不一致による古典的デッドロック（2026-11-21）
+
+- **学んだ原理・内部構造:**
+  - 2つ以上のトランザクションが互いに相手のロックを待つ循環待ち（デッドロック）が発生すると、InnoDB は Wait-for Graph でサイクルを即時検知し、`innodb_lock_wait_timeout` を待たずにロールバックコストが小さい側（Victim）を自動ロールバックして `SQLSTATE[40001] / 1213` を返す。
+  - `SHOW ENGINE INNODB STATUS` の `LATEST DETECTED DEADLOCK` では、`HOLDS THE LOCK(S)` と `WAITING FOR THIS LOCK TO BE GRANTED` を突き合わせることで競合箇所を特定できる。`PRIMARY` 上のロックでは物理レコード全体（`id`・`DB_TRX_ID`・`DB_ROLL_PTR`・`sku` 等）がダンプされる。
+- **観測した事実:**
+  - Session A が `id = 10`、Session B が `id = 20` を `lockForUpdate()` で保持した状態で互いに逆の ID を要求すると、即座に Session B が Victim（`WE ROLL BACK TRANSACTION (2)`）としてエラー `1213` でロールバックされ、Session A が続行できた。
+- **実務への応用ポイント:**
+  - 複数レコードをロックする際は、`WHERE id IN (...) ORDER BY id`（`PRIMARY` 順のため `Using filesort` なしで走査可能）や PHP 側での事前 `sort()` によって **ロック取得順序を統一** し、循環待ちを構造上発生させない。
+  - それでも発生し得るデッドロックに備え、`DB::transaction(..., $attempts)` 等でリトライ可能な設計にする。
