@@ -40,7 +40,7 @@
   - `SELECT` → `INSERT` 間の競合による Duplicate Entry、および `INSERT ... ON DUPLICATE KEY UPDATE` 時のギャップロック・Auto Increment 消費を検証する
 - [x] **3-3. `lockForUpdate()->skipLocked()` を用いたキュー・バッチの安全な並列処理**
   - ワーカー並列実行時に二重処理とロック待ちを同時に防ぐ `FOR UPDATE SKIP LOCKED`（および `NOWAIT`）の挙動を確認する
-- [ ] **3-4. ネストしたトランザクションと `SAVEPOINT` の挙動（発展）**
+- [x] **3-4. ネストしたトランザクションと `SAVEPOINT` の挙動（発展）**
   - Laravel の `DB::transaction()` をネストした際に発行される `SAVEPOINT` / `ROLLBACK TO SAVEPOINT` と、`attempts`（リトライ）指定時の副作用・注意点を確認する
 - [ ] **3-5. Eloquent のクエリ速度・メモリ最適化（N+1・`whereHas`・大量データ処理）**
   - `with()` による Eager Loading、`whereHas`（相関サブクエリ）vs `JOIN` の実行計画と速度差、`chunk()`（`OFFSET` 劣化）vs `chunkById()`（Seek 法）vs `cursor()`、バルク `insert()` の性能比較を行う
