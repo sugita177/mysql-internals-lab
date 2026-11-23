@@ -92,3 +92,15 @@
   - `with(['product' => fn ($q) => $q->lockForUpdate()])` にすることで `products`（`PRIMARY`, `data=10`, `X,REC_NOT_GAP`）にもロックが張られることを確認した。
 - **実務への応用ポイント:**
   - ロックは必ずトランザクション境界の内側で取得し、リレーション先もロックが必要な場合はクロージャ内で明示的に `lockForUpdate()` を指定する（またはロック順序統一のため親テーブルを先にロックしてから子を読む）。
+
+### [Phase 3-2] `updateOrCreate()` / `firstOrCreate()` の競合と `upsert()` の罠（2026-11-23）
+
+- **学んだ原理・内部構造:**
+  - `firstOrCreate()` / `updateOrCreate()` は「ロックなしの `SELECT` → `INSERT`」の 2 クエリに分かれるため、同時実行時に `1062 Duplicate entry` のレースコンディションを起こす。Laravel 11+ の `createOrFirst()` は先に `INSERT`（トランザクション内なら `SAVEPOINT` 付き）を試み、重複例外（`UniqueConstraintViolationException`）をキャッチして `useWritePdo()->first()` で取得する設計になっている。
+  - `upsert()` は `INSERT ... ON DUPLICATE KEY UPDATE` を発行するが、InnoDB（`innodb_autoinc_lock_mode = 2`）は挿入か更新かを確定する前に `AUTO_INCREMENT` を払い出すため、既存行の更新や重複エラーだけでも連番が消費され欠番が生じる。
+- **観測した事実:**
+  - `updateOrCreate()` が `select ... limit 1` → `insert` の 2 本を発行すること、および 2 コネクションが同時に `SELECT` で `null` を引くと後続の `INSERT` で `1062 Duplicate entry` になることを再現した。
+  - 4 行しか存在しない状態で `upsert()` 2 回（2行＋1行）と重複失敗 1 回を経た結果、新規行の `id` が `7` まで飛ぶことを確認した。
+- **実務への応用ポイント:**
+  - 同時リクエストが来る作成処理では `firstOrCreate()` を避け、`UNIQUE` 制約＋`createOrFirst()`（または重複例外キャッチ）を使う。
+  - `upsert()` を高頻度で回すテーブルの主キーには必ず `BIGINT UNSIGNED` を採用し、32bit `INT` の枯渇を防ぐ。
