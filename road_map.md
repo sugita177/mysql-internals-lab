@@ -34,7 +34,7 @@
 
 ## Phase 3: Laravel（Eloquent）特有の競合と実践パターン
 
-- [ ] **3-1. `lockForUpdate()` と `sharedLock()` の発行 SQL とリレーション併用時の挙動**
+- [x] **3-1. `lockForUpdate()` と `sharedLock()` の発行 SQL とリレーション併用時の挙動**
   - `with()`（別クエリになるためロックが効かない罠）と `JOIN` の違い、トランザクション外でのロック指定が無意味になる挙動を検証する
 - [ ] **3-2. `updateOrCreate()` / `firstOrCreate()` のレースコンディションと `upsert()` の罠**
   - `SELECT` → `INSERT` 間の競合による Duplicate Entry、および `INSERT ... ON DUPLICATE KEY UPDATE` 時のギャップロック・Auto Increment 消費を検証する
