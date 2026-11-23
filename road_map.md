@@ -49,7 +49,7 @@
 
 ## Phase 4: 実行計画（EXPLAIN）とインデックス設計・主キー選定
 
-- [ ] **4-1. `EXPLAIN` / `EXPLAIN ANALYZE` の読み方（`type`, `key`, `rows`, `Extra`）**
+- [x] **4-1. `EXPLAIN` / `EXPLAIN ANALYZE` の読み方（`type`, `key`, `rows`, `Extra`）**
   - `const` / `ref` / `range` / `index` / `ALL` の違いと、`EXPLAIN ANALYZE` による実測コスト・実処理行数の読み取りを習得する
 - [ ] **4-2. カバリングインデックス（`Using index`）と複合インデックスのカラム順序設計**
   - 左端一致の原則、等価条件 → 範囲条件 → `ORDER BY`（`Using filesort` 回避）の設計セオリーを検証する
