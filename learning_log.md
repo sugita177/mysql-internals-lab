@@ -130,3 +130,17 @@
 - **実務への応用ポイント:**
   - `attempts`（リトライ）は必ず最外殻（トップレベル）の `DB::transaction()` にだけ指定する。
   - 外部 API 呼び出し・メール送信・キュー投入はトランザクションの外に出すか、`afterCommit()` 経由で実行する。
+
+### [Phase 3-5] Eloquent のクエリ速度・メモリ最適化（2026-11-23）
+
+- **学んだ原理・内部構造:**
+  - ループ内の単発 `INSERT` は毎回ネットワーク往復とトランザクション確定が走るため、バルク `insert()` でまとめて送ることで劇的に高速化する。
+  - `chunk()` は `LIMIT / OFFSET` を使うため後ろのページほど全スキャン＋破棄が増えて劣化する（さらにループ内の削除・状態変化で行ズレが起きる）が、`chunkById()` は `WHERE id > ?` の Seek 法で `PRIMARY` B+Tree 上を直接ジャンプするため常に一定速度で安全に処理できる。
+  - `whereHas()` は `EXISTS (...)` の相関サブクエリを発行するため、条件次第では外側テーブルをフルスキャンする重い実行計画になりやすい。
+- **観測した事実:**
+  - 2,000 件の挿入で、1件ずつ `INSERT`（`6380.47 ms`）に対し 500件ずつのバルク `INSERT`（`85.38 ms`）は約 75 倍高速だった。
+  - `chunk()` が `limit 500 offset 500/1000/...` を発行する一方、`chunkById()` は `where id > ? order by id asc limit 500` を発行することを確認した。
+  - `OrderItem::whereHas('product', ...)` が `where exists (select * from products where ...)` を発行することを確認した。
+- **実務への応用ポイント:**
+  - バッチでの大量データ挿入は `array_chunk` + バルク `insert()`、大量データ走査は `chunk()` ではなく `chunkById()`（またはメモリ最小の `cursor()`）を選ぶ。
+  - `whereHas()` を大量テーブルに使う場合は `EXPLAIN` を確認し、必要なら `JOIN` や `whereIn` に書き換える。
