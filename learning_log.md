@@ -144,3 +144,13 @@
 - **実務への応用ポイント:**
   - バッチでの大量データ挿入は `array_chunk` + バルク `insert()`、大量データ走査は `chunk()` ではなく `chunkById()`（またはメモリ最小の `cursor()`）を選ぶ。
   - `whereHas()` を大量テーブルに使う場合は `EXPLAIN` を確認し、必要なら `JOIN` や `whereIn` に書き換える。
+
+### [Phase 4-1] `EXPLAIN` / `EXPLAIN ANALYZE` の読み方（2026-11-24）
+
+- **学んだ原理・内部構造:**
+  - `EXPLAIN` はクエリを実行せず統計情報から予測計画を立て、`EXPLAIN ANALYZE` は実際にクエリを実行して各ステップの予測コストと実測時間（`actual time=開始..終了`）・実測行数をツリー表示する。
+  - アクセスタイプ（`type`）は `const > ref > range > index > ALL` の順に高速で、実務では `ALL` / 全件 `index` や `Extra` の `Using filesort` / `Using temporary` を危険サインとして監視する。
+- **観測した事実:**
+  - 10,000 件の `perf_logs` に対し、`id=100` で `const`（`rows=1`）、`category=10` で `ref`（`rows=100`, 実測 `0.788 ms`）、`id BETWEEN` で `range`、`SELECT category` で `index`（`Using index`）、`payload` 検索で `ALL`（実測 `10000` 行フルスキャン, `4.1 ms`）になることを確認した。
+- **実務への応用ポイント:**
+  - `EXPLAIN` で `type`, `possible_keys` vs `key`, `rows`（JOIN時は積）, `Extra` を確認し、本番では `EXPLAIN ANALYZE` を安易に更新系や重いクエリへ打たないよう検証環境・レプリカで分析する。
