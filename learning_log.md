@@ -80,3 +80,15 @@
   - `04_optimistic_lock.php` で同一レコードを 2 コネクションからロックなしで読んだあと、`version` 条件付きで順次更新すると Session A は `1 件`、Session B は `0 件` となり競合を安全に検知できた。
 - **実務への応用ポイント:**
   - 「ロック順序の統一」「トランザクション粒度の縮小（外部処理をトランザクション外へ）」「楽観的ロック（画面編集等）」を処理特性に応じて使い分ける。
+
+### [Phase 3-1] `lockForUpdate()` と `sharedLock()` の発行 SQL とリレーション併用時の挙動（2026-11-23）
+
+- **学んだ原理・内部構造:**
+  - `beginTransaction()` なしで `lockForUpdate()` を実行しても、MySQL の Auto-commit によりステートメント終了と同時にロックが即解放される。
+  - Eloquent の `with()`（Eager Loading）は `JOIN` ではなく独立した別の `SELECT` クエリを発行するため、親クエリに付けた `lockForUpdate()` はリレーション先へ伝播しない。
+- **観測した事実:**
+  - トランザクション外での `lockForUpdate()` 直後は `data_locks` が `0 件` だった。
+  - `OrderItem::with('product')->lockForUpdate()->get()` では `order_items` のみに `FOR UPDATE` が付き、`products` への `SELECT ... WHERE id IN (10)` にはロックが付かなかった。
+  - `with(['product' => fn ($q) => $q->lockForUpdate()])` にすることで `products`（`PRIMARY`, `data=10`, `X,REC_NOT_GAP`）にもロックが張られることを確認した。
+- **実務への応用ポイント:**
+  - ロックは必ずトランザクション境界の内側で取得し、リレーション先もロックが必要な場合はクロージャ内で明示的に `lockForUpdate()` を指定する（またはロック順序統一のため親テーブルを先にロックしてから子を読む）。
