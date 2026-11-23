@@ -104,3 +104,16 @@
 - **実務への応用ポイント:**
   - 同時リクエストが来る作成処理では `firstOrCreate()` を避け、`UNIQUE` 制約＋`createOrFirst()`（または重複例外キャッチ）を使う。
   - `upsert()` を高頻度で回すテーブルの主キーには必ず `BIGINT UNSIGNED` を採用し、32bit `INT` の枯渇を防ぐ。
+
+### [Phase 3-3] `FOR UPDATE SKIP LOCKED` による並列バッチ処理（2026-11-23）
+
+- **学んだ原理・内部構造:**
+  - `illuminate/database`（Laravel 11 含む）には `skipLocked()` メソッドは存在せず、`->lock('for update skip locked')`（`NOWAIT` なら `'for update nowait'`）を文字列で渡す仕様になっている（`MySqlGrammar::compileLock`）。
+  - `SKIP LOCKED` は他セッションがロック中の行をスキップして次の未ロック行を即座に取得できる。
+  - **セカンダリインデックスの並び順とギャップロックの罠:** `status` に非一意インデックスがあり `REPEATABLE READ` の場合、Worker A が `('pending', 1)` に張ったネクストキーロックは直前のギャップ `(-∞, ('pending', 1))` もロックする。そのため Worker B が `id=2` の `status` を辞書順で手前に来る `'done'`（`'d' < 'p'`）へ更新しようとすると、インデックス挿入先が同じギャップに落ちてブロックされる。
+- **観測した事実:**
+  - Worker A が `id=1` を掴んだ状態で Worker B を実行すると、`SKIP LOCKED` により数ミリ秒で `id=2` を取得できた。
+  - 一方、Worker B が `status` を `'done'` へ直接更新したケースでは `1205 Lock wait timeout` でブロックされたが、`'processing'` 等（または `READ COMMITTED`）ではブロックされずに完了できることを確認した。
+- **実務への応用ポイント:**
+  - キューのステータス値は数値 Enum（`0:pending < 1:processing < 2:done`）のように状態遷移が進むほど値が大きくなる設計にするか、`READ COMMITTED` と `SKIP LOCKED` を組み合わせる。
+  - `SKIP LOCKED` を使うクエリの `WHERE` 条件には必ずインデックスを張り、意図しない全行スキップを防ぐ。
