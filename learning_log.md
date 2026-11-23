@@ -117,3 +117,16 @@
 - **実務への応用ポイント:**
   - キューのステータス値は数値 Enum（`0:pending < 1:processing < 2:done`）のように状態遷移が進むほど値が大きくなる設計にするか、`READ COMMITTED` と `SKIP LOCKED` を組み合わせる。
   - `SKIP LOCKED` を使うクエリの `WHERE` 条件には必ずインデックスを張り、意図しない全行スキップを防ぐ。
+
+### [Phase 3-4] ネストしたトランザクションと `SAVEPOINT` の挙動（2026-11-23）
+
+- **学んだ原理・内部構造:**
+  - MySQL は真のネストトランザクションを持たないため、Laravel（`ManagesTransactions`）は 2 段目以降の `transaction()` で `SAVEPOINT` / `ROLLBACK TO SAVEPOINT` を発行して部分ロールバックを実現している。
+  - ただし MySQL 側でデッドロック（`1213`）が起きた場合は `SAVEPOINT` ではなく親トランザクション全体が強制ロールバックされるため、ネスト内側で `attempts > 1` を指定するとアプリ側と DB 側の状態認識がズレて不整合や `SAVEPOINT does not exist` エラーを引き起こす。
+  - また、トップレベルの `transaction(..., $attempts)` 内に外部 API 呼び出し等の副作用を書くと、リトライ時に複数回実行されてしまう。
+- **観測した事実:**
+  - 外側トランザクション内で内側 `transaction()` が例外を投げ、外側で `try-catch` すると、`inner_item` だけがロールバックされ `outer_before` と `outer_after` のみがコミットされた（`id=2` は欠番）。
+  - `transaction(..., 3)` 内でデッドロック例外を発生させると、外部 API カウンタが 3 回インクリメントされることを確認した。
+- **実務への応用ポイント:**
+  - `attempts`（リトライ）は必ず最外殻（トップレベル）の `DB::transaction()` にだけ指定する。
+  - 外部 API 呼び出し・メール送信・キュー投入はトランザクションの外に出すか、`afterCommit()` 経由で実行する。
