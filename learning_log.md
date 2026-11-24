@@ -154,3 +154,14 @@
   - 10,000 件の `perf_logs` に対し、`id=100` で `const`（`rows=1`）、`category=10` で `ref`（`rows=100`, 実測 `0.788 ms`）、`id BETWEEN` で `range`、`SELECT category` で `index`（`Using index`）、`payload` 検索で `ALL`（実測 `10000` 行フルスキャン, `4.1 ms`）になることを確認した。
 - **実務への応用ポイント:**
   - `EXPLAIN` で `type`, `possible_keys` vs `key`, `rows`（JOIN時は積）, `Extra` を確認し、本番では `EXPLAIN ANALYZE` を安易に更新系や重いクエリへ打たないよう検証環境・レプリカで分析する。
+
+### [Phase 4-2] カバリングインデックスと複合インデックスの設計（2026-11-24）
+
+- **学んだ原理・内部構造:**
+  - 複合インデックスは左端のカラムから順にソートされた 1 本の B+Tree であるため、原則として **等価条件（`=`）→ 範囲条件（`>=` 等）／`ORDER BY`** の順に定義する（範囲条件の後ろのカラムにはインデックスが効かない）。
+  - セカンダリインデックスのリーフにはインデックス列と主キーが含まれるため、`SELECT` 句をその範囲内に絞ると `PRIMARY` へのブックマークルックアップが不要になる（カバリングインデックス：`Using index`）。
+- **観測した事実:**
+  - 20,000 件の `orders_perf` に対し、`idx_good_order (user_id, status, ordered_at)` を設計すると `rows=1` かつ `Backward index scan`（`Using filesort` なし）で取得でき、`SELECT id, user_id, status, ordered_at` では `Using index` が付いた。
+  - 先頭列 `user_id` を抜いたクエリでは左端一致が崩れ、`idx_bad_order` へフォールバックして `rows=9292` に悪化した。
+- **実務への応用ポイント:**
+  - 複合インデックスは「よく使う等価条件 → 範囲／ソート」の順に組み、一覧取得等で不要な `SELECT *` を避けてカバリングインデックスを狙う。
