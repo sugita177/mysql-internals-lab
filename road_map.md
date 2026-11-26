@@ -57,7 +57,7 @@
   - 文字列カラムへの数値検索、`DATE(created_at)`、`OR` 条件、低カーディナリティカラムでのオプティマイザ判断（Index Dive / 統計情報）を検証する
 - [x] **4-4. サロゲートキー選定（Auto Increment vs UUIDv4 vs ULID / UUIDv7）とページ分割（Page Split）**
   - ランダムな UUIDv4 挿入時に発生する B+Tree ページ分割・フラグメンテーション・テーブルサイズ肥大化を実測比較する
-- [ ] **4-5. InnoDB バッファプールと統計情報（`ANALYZE TABLE`）の理解（発展）**
+- [x] **4-5. InnoDB バッファプールと統計情報（`ANALYZE TABLE`）の理解（発展）**
   - なぜ同じクエリでも統計情報の偏りで実行計画が急変するのか、`innodb_buffer_pool_size` とディスク I/O の関係を整理する
 - [ ] **4-6. サブクエリ・集計・`SELECT *` のパフォーマンスチューニング**
   - 相関サブクエリ vs `JOIN`、一時テーブル（`Using temporary`）を発生させない `GROUP BY` / `DISTINCT`、巨大な `TEXT`/`JSON` カラムを `SELECT *` で読むことによるメモリ・ページI/O 劣化とテーブル分割・カバリングの勘所を検証する
