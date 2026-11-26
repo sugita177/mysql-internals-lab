@@ -68,7 +68,7 @@
 
 - [x] **5-1. MVCC（スナップショット読み）と長時間トランザクションによる Undo ログ肥大化**
   - Read View の仕組み（一貫性読み取り vs 現在読み取り）を理解し、長時間オープンなトランザクションが `History List Length` を増加させクエリ性能を劣化させる現象を観測する
-- [ ] **5-2. Redo ログとバイナリログ（binlog）の役割とクラッシュリカバリ（WAL / 2PC）**
+- [x] **5-2. Redo ログとバイナリログ（binlog）の役割とクラッシュリカバリ（WAL / 2PC）**
   - WAL（Write-Ahead Logging）、`innodb_flush_log_at_trx_commit` と `sync_binlog` の耐久性・性能トレードオフを理解する
 - [ ] **5-3. `ALTER TABLE` によるメタデータロック（MDL）事故の再現とオンライン DDL**
   - 長時間 `SELECT` 中に `ALTER TABLE` を流すと後続の全クエリが `Waiting for table metadata lock` で詰まる事故を再現し、`ALGORITHM=INSTANT / INPLACE`・`LOCK=NONE` の適用条件を検証する

@@ -224,3 +224,15 @@
   - 同じ Session A のトランザクション内で、通常の `SELECT` は `50`（スナップショット読み）、`lockForUpdate()` は `150`（現在読み取り）を返すことを確認した。
 - **実務への応用ポイント:**
   - `commit` / `rollBack` 忘れや長時間バッチ（`mysqldump --single-transaction` 等）による長時間 Read View 保持を避け、`History List Length` を監視指標に含める。
+
+### [Phase 5-2] Redo ログと binlog の役割とクラッシュリカバリ（2026-11-26）
+
+- **学んだ原理・内部構造:**
+  - **Redo ログ（WAL）:** 変更内容を末尾追記（シーケンシャル I/O）で記録し、本体（`.ibd`）への反映を後回し（Dirty Page として Buffer Pool に保持 → バックグラウンド Flush）にすることで高速性と耐久性を両立する。
+  - **binlog（`ROW` 形式）:** `COMMIT` 時にだけ変更前後の行データを書き出し、末尾の `Xid` イベントで 2 フェーズコミット（2PC）の確定印を残すことで Redo ログとの整合性を保証する。
+- **観測した事実:**
+  - `innodb_flush_log_at_trx_commit = 1` / `sync_binlog = 1` / `binlog_format = ROW` / `innodb_redo_log_capacity = 100MB` であることを確認。
+  - `products.id = 10` の `stock` を 1 行 `increment` してコミットすると、`SHOW BINARY LOG STATUS` の Position が `452 Byte` 進むことを観測した。
+- **実務への応用ポイント:**
+  - プライマリ DB では `innodb_flush_log_at_trx_commit = 1` と `sync_binlog = 1` を維持して完全 ACID を担保する。
+  - `ROW` 形式では 1 行の変更でも行全体が記録されるため、大量一括更新時はチャンク分割して binlog 肥大化とレプリケーション遅延を防ぐ。
