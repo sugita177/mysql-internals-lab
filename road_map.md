@@ -66,7 +66,7 @@
 
 ## Phase 5: MVCC・Undo/Redo ログと無停止運用（オンライン DDL）
 
-- [ ] **5-1. MVCC（スナップショット読み）と長時間トランザクションによる Undo ログ肥大化**
+- [x] **5-1. MVCC（スナップショット読み）と長時間トランザクションによる Undo ログ肥大化**
   - Read View の仕組み（一貫性読み取り vs 現在読み取り）を理解し、長時間オープンなトランザクションが `History List Length` を増加させクエリ性能を劣化させる現象を観測する
 - [ ] **5-2. Redo ログとバイナリログ（binlog）の役割とクラッシュリカバリ（WAL / 2PC）**
   - WAL（Write-Ahead Logging）、`innodb_flush_log_at_trx_commit` と `sync_binlog` の耐久性・性能トレードオフを理解する
