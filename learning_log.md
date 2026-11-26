@@ -212,3 +212,15 @@
   - `orders_perf` の 8,000 件範囲検索で、`SELECT *` は 20,000 行フルスキャン（`15.9 ms`）だったのに対し、カバリング指定では `idx_good_order` の 8,000 行走査（`4.17 ms`、約 4 倍高速）になった。
 - **実務への応用ポイント:**
   - 集計クエリでは `GROUP BY` 列を意識したインデックス設計を行い、一覧や集計では `SELECT *` を避けてカバリングインデックスを活用する。
+
+### [Phase 5-1] MVCC（スナップショット読み）と Undo ログ肥大化（2026-11-26）
+
+- **学んだ原理・内部構造:**
+  - `UPDATE` / `DELETE` のたびに古い世代が Undo ログへ退避され、`DB_ROLL_PTR` で繋がれたバージョンチェーンが形成される。
+  - `REPEATABLE READ` では最初の `SELECT` 時点で Read View が撮影され、通常の `SELECT`（Consistent Read）はバージョンチェーンを遡って開始時点の値を返す一方、`FOR UPDATE`（Current Read）は最新行を直接ロックして読む。
+  - 長時間トランザクションが Read View を保持し続けると、パージスレッドが Undo ログを削除できなくなり、`History List Length` が肥大化して全クエリの参照性能を劣化させる。
+- **観測した事実:**
+  - Session A が `stock=50` を読んだ状態で Session B が 100 回 `increment('stock')` を実行すると、`History List Length` が `0` → `101` に増加した。
+  - 同じ Session A のトランザクション内で、通常の `SELECT` は `50`（スナップショット読み）、`lockForUpdate()` は `150`（現在読み取り）を返すことを確認した。
+- **実務への応用ポイント:**
+  - `commit` / `rollBack` 忘れや長時間バッチ（`mysqldump --single-transaction` 等）による長時間 Read View 保持を避け、`History List Length` を監視指標に含める。
