@@ -188,3 +188,16 @@
   - 20,000 件挿入後のサイズ比較で、`pk_auto_inc`（DATA `1552 KB` / INDEX `528 KB`）、`pk_uuid_v7`（DATA `1552 KB` / INDEX `1552 KB`）、`pk_uuid_v4`（DATA `2576 KB` / INDEX `1552 KB`）となり、`UUIDv7` は本体サイズを `AUTO_INCREMENT` と同等に抑えられた一方、`UUIDv4` は約 1.66 倍に肥大化した。
 - **実務への応用ポイント:**
   - 単一 DB なら `BIGINT UNSIGNED AUTO_INCREMENT`、アプリ側での分散採番が必要なら `ULID` / `UUIDv7` を `BINARY(16)` で格納し、`CHAR(36)` のランダム `UUIDv4` 主キーは避ける。
+
+### [Phase 4-5] InnoDB バッファプールと統計情報（`ANALYZE TABLE`）（2026-11-26）
+
+- **学んだ原理・内部構造:**
+  - InnoDB は 16KB ページをメモリ（InnoDB Buffer Pool）上にキャッシュしており、`read_requests`（論理読み込み）に対する `reads`（物理ディスク読み込み）の割合が低いほど（ヒット率 99% 以上が目安）高速に動作する。
+  - オプティマイザはランダムサンプリングによる統計情報（`Cardinality`＝ユニーク値数の推定値）をもとに実行計画を決めるため、大量更新後に偏りが起きると実行計画が急変することがあり、`ANALYZE TABLE` で再計算できる。
+  - 複合インデックスの設計では「等価条件 → 範囲／ソート」が最優先であり、その上で等価条件同士はカーディナリティが高い列を先に置く。
+- **観測した事実:**
+  - `@@innodb_buffer_pool_size` は `128MB`、実験環境でのヒット率は `91.576%`（`requests=16642, reads=1402`）だった。
+  - `ANALYZE TABLE orders_perf` 後の `SHOW INDEX` で、`id`（`20128`）や `ordered_at`（`20000`）は高カーディナリティ、`user_id`（`500`）は中カーディナリティとして記録されていることを確認した。
+- **実務への応用ポイント:**
+  - 本番 DB では `innodb_buffer_pool_size` を物理メモリの 70〜80% 程度に確保し、ヒット率低下（ディスク I/O 増）を監視する。
+  - 実行計画が突然悪化した際は `SHOW INDEX` と `ANALYZE TABLE` で統計情報のズレを確認する。
