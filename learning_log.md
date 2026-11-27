@@ -236,3 +236,14 @@
 - **実務への応用ポイント:**
   - プライマリ DB では `innodb_flush_log_at_trx_commit = 1` と `sync_binlog = 1` を維持して完全 ACID を担保する。
   - `ROW` 形式では 1 行の変更でも行全体が記録されるため、大量一括更新時はチャンク分割して binlog 肥大化とレプリケーション遅延を防ぐ。
+
+### [Phase 5-3] `ALTER TABLE` による MDL 事故とオンライン DDL（2026-11-28）
+
+- **学んだ原理・内部構造:**
+  - ロックなしの通常の `SELECT` であっても、トランザクションが終了するまで `SHARED_READ` のメタデータロック（MDL）を保持する。
+  - そこに `ALTER TABLE` が来て `EXCLUSIVE` MDL の待ち行列に並ぶと、たとえ `ALGORITHM=INSTANT` であっても後続の全 `SELECT` / 更新クエリが `Waiting for table metadata lock` で詰まる。
+  - `ALGORITHM=INSTANT`（メタデータ定義のみ即変更）、`INPLACE, LOCK=NONE`（読み書きを止めずに裏で再構築）、`COPY`（書き込み停止）を明示することで、意図しないテーブルロック DDL を事前エラーで防げる。
+- **観測した事実:**
+  - Session A が通常の `SELECT` 後に未コミットで待機している状態で `ALTER TABLE ... ALGORITHM=INSTANT` を実行すると即座にブロックされ、`SHOW FULL PROCESSLIST` で Session A は `Sleep (Info=NULL)`、Session B は `Waiting for table metadata lock` として観測された。
+- **実務への応用ポイント:**
+  - 本番 DDL 実行時は `ALGORITHM=` / `LOCK=` の明示に加え、`SET SESSION lock_wait_timeout = 5` 等を設定して MDL 待ちによるサービス全滅を防ぐ。
