@@ -247,3 +247,13 @@
   - Session A が通常の `SELECT` 後に未コミットで待機している状態で `ALTER TABLE ... ALGORITHM=INSTANT` を実行すると即座にブロックされ、`SHOW FULL PROCESSLIST` で Session A は `Sleep (Info=NULL)`、Session B は `Waiting for table metadata lock` として観測された。
 - **実務への応用ポイント:**
   - 本番 DDL 実行時は `ALGORITHM=` / `LOCK=` の明示に加え、`SET SESSION lock_wait_timeout = 5` 等を設定して MDL 待ちによるサービス全滅を防ぐ。
+
+### [Phase 5-4] 無停止スキーマ変更（Expand and Contract パターン）（2026-11-28）
+
+- **学んだ原理・内部構造:**
+  - ローリングデプロイ中に新旧アプリが混在する環境で直接 `RENAME COLUMN` や型変更 `ALTER TABLE` を行うと、旧アプリが `Unknown column` で落ちたり `ALGORITHM=COPY` で長時間テーブルが止まったりする。
+  - **Expand and Contract:** ① `ALGORITHM=INSTANT` で新カラムを `NULL` 許容で追加（Expand）→ ② アプリを新旧二重書き込み（Dual-Write）にしつつ主キー範囲チャンク分割で過去データを移行（Backfill）→ ③ 参照を新カラムへ切り替え → ④ 旧アプリ停止後に旧カラムを `INSTANT` で削除（Contract）する 4 段階で無停止移行できる。
+- **観測した事実:**
+  - `users_legacy`（10,000 件）に対し、`mobile_number` の `INSTANT` 追加 → 2,000 件ずつの `whereBetween('id', ...)` ＋ `whereNull` による冪等 Backfill（残り NULL 0 件を確認）→ `INSTANT` 削除までを一貫して無停止パターンで実行できた。
+- **実務への応用ポイント:**
+  - 破壊的なスキーマ変更は必ず「追加・移行・切り替え・削除」の複数リリースに分割してリリースする。
