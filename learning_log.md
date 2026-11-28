@@ -257,3 +257,15 @@
   - `users_legacy`（10,000 件）に対し、`mobile_number` の `INSTANT` 追加 → 2,000 件ずつの `whereBetween('id', ...)` ＋ `whereNull` による冪等 Backfill（残り NULL 0 件を確認）→ `INSTANT` 削除までを一貫して無停止パターンで実行できた。
 - **実務への応用ポイント:**
   - 破壊的なスキーマ変更は必ず「追加・移行・切り替え・削除」の複数リリースに分割してリリースする。
+
+### [Phase 6-1] 孤児レコード・重複レコードの検出と安全なクレンジング（2026-11-28）
+
+- **学んだ原理・内部構造:**
+  - `FOREIGN KEY` や `UNIQUE` 制約が欠如したレガシー環境では、親のいない孤児レコード（Orphan）や重複レコードが蓄積する。
+  - ウィンドウ関数 `ROW_NUMBER() OVER (PARTITION BY email ORDER BY id ASC)` は SQL 評価順序上 `WHERE` より後の `SELECT` 段階で計算されるため、CTE（`WITH ranked AS (...)`）でラップしてから外側の `WHERE rn > 1` で絞り込み、元テーブルへ `INNER JOIN` して削除する。
+  - `LEFT JOIN` で `SELECT *` を使うと、両テーブルの同名カラム（`id` 等）が PHP のオブジェクト化時に後の `NULL` で上書きされるため、必ず `o.id` のようにエイリアスを明示する。
+- **観測した事実:**
+  - `legacy_orders` から `LEFT JOIN (WHERE c.id IS NULL)` で孤児注文（`id=104, 105`）を検出できた。
+  - `legacy_customers` の重複（`id=2, 4, 5`）を CTE + `ROW_NUMBER()` の Dry-run で特定したあと、安全に削除して 3 件（`id=1, 3, 6`）のみを残せた。
+- **実務への応用ポイント:**
+  - 本番のデータ修復パッチは必ず「同じ条件の `SELECT`（Dry-run）で件数確認 → トランザクション内で `DELETE` / 付け替え → 再発防止の制約追加」の順で実施する。
